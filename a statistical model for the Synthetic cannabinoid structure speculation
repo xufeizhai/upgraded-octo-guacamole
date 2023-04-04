@@ -1,0 +1,65 @@
+import numpy as np
+import pandas as pd
+from sklearn.decomposition import PCA
+from sklearn.feature_selection import VarianceThreshold
+import scipy.cluster.hierarchy as sch
+from matplotlib import pyplot as plt
+import xlwt
+
+if __name__ == '__main__':
+    data = pd.read_excel('data.xlsx')
+    x = data.iloc[:, 2:]
+    y = data.iloc[:, 0]
+    # Variance filtering of the data, excluding variables with variance less than 0.0001, reduced the data set to 176 variables
+
+    selector = VarianceThreshold(0.0001)
+    x_var0 = selector.fit_transform(x)
+    # 2 principal components have been retained after dimensionality reduction
+    pca = PCA(n_components=3)
+    pca = pca.fit(x_var0)
+    x_dr = pca.transform(x_var0)
+    print(pca.explained_variance_)
+
+    # Generate pca analysis images
+    x_l,y_l = x_dr[:,0], x_dr[:,1]
+    f = plt.figure()
+   
+    f1 = plt.subplot(111)
+    f1.scatter(x_l,y_l,s = 1)
+    plt.xlabel('PCA1(22.27%)')
+    plt.ylabel('PCA2(18.96%)')
+   
+    for i in range(len(x_l)):
+        f1.annotate(y[i],xy = (x_l[i],y_l[i]),xytext = (x_l[i],y_l[i]),fontsize = 10)
+    plt.show()
+
+
+
+
+    # Set the number of clusters for the hierarchical clustering
+    cluster_num = 4
+    # Generate the distance matrix between points, here the Euclidean distance is used.
+    disMat = sch.distance.pdist(x_dr, 'euclidean')
+    Z = sch.linkage(disMat, method='average')
+    P = sch.dendrogram(Z,truncate_mode='lastp', p=cluster_num, leaf_rotation=90., leaf_font_size=12., show_contracted=True)
+    plt.show()
+    # The clustering results were obtained according to the linkage matrix Z.
+    cluster = sch.fcluster(Z, cluster_num, criterion='maxclust')
+
+    # Save clustering results to xls
+    final_l = []
+    for i in range(1,cluster_num+1):
+        new_l = y[np.where(cluster==i)[0]]
+        new_l = list(new_l)
+        final_l.append(new_l)
+    f = xlwt.Workbook()
+    sheet1 = f.add_sheet('Chemical compound classification table',cell_overwrite_ok=True)
+    sheet1.write(1,0,'Categories')
+
+    for i in range(1,cluster_num+1):
+        sheet1.write(1,2*i-1,str(i))
+    for index,l in enumerate(final_l):
+        for name_index,name in enumerate(l):
+            sheet1.write(name_index+2,2*index+1,name)
+
+    f.save('Classification table for SCs.xls')
